@@ -38,10 +38,23 @@ from adi.context_manager import context_manager
 from adi.rx_tx import rx
 
 class ad74413r(rx, context_manager):
-    def __init__(self, uri="", device_name=""):
-        context_manager.__init__(self, uri, self.device_name)
+    _device_name = "ad74413r"
 
-    class adc_voltage_channel(attribute):
+    def __init__(self, uri=""):
+        context_manager.__init__(self, uri, self._device_name)
+        self.voltage_channels = []
+        self.current_channels = []
+        self._ctrl = self._ctx.find_device("ad74413r")
+        self.voltage_channel_names = ["voltage1", "voltage2"]
+        self.current_channel_names = ["current0", "current3"]
+
+        for channel in self.voltage_channel_names:
+            self.voltage_channels.append(self._voltage_channel(self._ctrl, channel))
+
+        for channel in self.current_channel_names:
+            self.current_channels.append(self._current_channel(self._ctrl, channel))
+
+    class _voltage_channel(attribute):
         def __init__(self, ctrl, channel_name):
             self.name = channel_name
             self._ctrl = ctrl
@@ -77,7 +90,44 @@ class ad74413r(rx, context_manager):
         @scale.setter
         def scale(self, value):
             self._set_iio_attr(self.name, "scale", False, str(Decimal(value).real))
-    
+
+    class _current_channel(attribute):
+        def __init__(self, ctrl, channel_name):
+            self.name = channel_name
+            self._ctrl = ctrl
+        
+        @property
+        def offset(self):
+            return self._get_iio_attr(self.name, "offset", False)
+
+        @property
+        def raw(self):
+            return self._get_iio_attr(self.name, "raw", False)
+
+        @property
+        def sampling_frequency(self):
+            return self._get_iio_attr(self.name, "sampling_frequency", False)
+
+        @sampling_frequency.setter
+        def sampling_frequency(self, sf):
+            if not isinstance(sf, np.int16):
+                return
+            
+            if str(sf) in self.sampling_frequency_available.split():
+                self._set_iio_attr(self.name, "sampling_frequency", False, sf)
+
+        @property
+        def sampling_frequency_available(self):
+            return self._get_iio_attr_str(self.name, "sampling_frequency_available", False)
+
+        @property
+        def scale(self):
+            return float(self._get_iio_attr_str(self.name, "scale", False))
+
+        @scale.setter
+        def scale(self, value):
+            self._set_iio_attr(self.name, "scale", False, str(Decimal(value).real))
+
     def to_volts(self, index, val):
         _scale = self.channel[index].scale
         ret = None
